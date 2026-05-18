@@ -361,15 +361,55 @@ fun LyricsSheet(
     LaunchedEffect(Unit) {
         keepScreenOnFlow.collect { keepScreenOn = it }
     }
+    val coroutineScope = rememberCoroutineScope()
 
     // Apply FLAG_KEEP_SCREEN_ON via the window when enabled
     val view = LocalView.current
-    DisposableEffect(keepScreenOn) {
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+
+    DisposableEffect(keepScreenOn, lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_STOP && keepScreenOn) {
+                keepScreenOn = false
+                coroutineScope.launch {
+                    context.dataStore.edit { prefs ->
+                        prefs[booleanPreferencesKey("keep_screen_on_lyrics")] = false
+                    }
+                }
+            }
+        }
+
         if (keepScreenOn) {
             view.keepScreenOn = true
         }
+
+        lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
             view.keepScreenOn = false
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
+    DisposableEffect(keepScreenOn, lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_STOP && keepScreenOn) {
+                keepScreenOn = false
+                coroutineScope.launch {
+                    context.dataStore.edit { prefs ->
+                        prefs[booleanPreferencesKey("keep_screen_on_lyrics")] = false
+                    }
+                }
+            }
+        }
+        
+        if (keepScreenOn) {
+            view.keepScreenOn = true
+        }
+
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            view.keepScreenOn = false
+            lifecycleOwner.lifecycle.removeObserver(observer)
         }
     }
 
@@ -420,7 +460,6 @@ fun LyricsSheet(
     val swipeThresholdPx = with(LocalDensity.current) { swipeThreshold.toPx() }
     val overlayTranslation = remember { Animatable(0f) }
     val swipeProgress = remember { Animatable(0f) }
-    val coroutineScope = rememberCoroutineScope()
 
     // Reset keep-screen-on when the physical screen goes off (power button / OEM sleep gesture).
     // ACTION_SCREEN_OFF is a guaranteed platform broadcast; no OEM can suppress it.
@@ -576,7 +615,6 @@ fun LyricsSheet(
                 scaleX = scale
                 scaleY = scale
                 translationY = lerp(0f, size.height * 0.08f, p)
-                alpha = lerp(1f, 0.72f, p)
             }
             .clip(RoundedCornerShape(32.dp))
             .pointerInput(Unit) {
@@ -1635,10 +1673,10 @@ fun LyricWordSpan(
         label = "wordColor"
     )
 
-    // Scale: pop up to 1.15 on highlight, settle back to 1f. Only active when
+    // Scale: pop up to 1.10 on highlight, settle back to 1f. Only active when
     // animated lyrics is on — layout is untouched because it's applied in graphicsLayer.
     val scale by animateFloatAsState(
-        targetValue = if (useAnimatedLyrics && isHighlighted) 1.15f else 1f,
+        targetValue = if (useAnimatedLyrics && isHighlighted) 1.10f else 1f,
         animationSpec = wordAnimSpec,
         label = "wordScale"
     )
